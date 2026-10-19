@@ -1,0 +1,14 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Font probe</title></head><body>
+<h1>Font probe</h1><pre id="out">measuring</pre>
+<script>
+(function(){
+  const families = ["Arial","Arial Black","Arial Narrow","Calibri","Cambria","Candara","Comic Sans MS","Consolas","Constantia","Corbel","Courier New","Franklin Gothic Medium","Gabriola","Garamond","Georgia","Impact","Lucida Console","Lucida Sans Unicode","Microsoft Sans Serif","Palatino Linotype","Segoe UI","Segoe UI Symbol","Tahoma","Times New Roman","Trebuchet MS","Verdana","Wingdings","Symbol","Helvetica","Helvetica Neue","Menlo","Monaco","Geneva","Lucida Grande","Avenir","Gill Sans","Optima","Futura","Baskerville","Hoefler Text","American Typewriter","Apple Chancery","Chalkboard","Didot","Skia","Zapfino","San Francisco","SF Pro","Ubuntu","Ubuntu Mono","Ubuntu Condensed","DejaVu Sans","DejaVu Serif","DejaVu Sans Mono","Liberation Sans","Liberation Serif","Liberation Mono","Noto Sans","Noto Serif","Noto Sans Mono","Noto Color Emoji","Noto Sans CJK JP","Noto Sans CJK SC","FreeSans","FreeSerif","FreeMono","Roboto","Roboto Mono","Lato","Open Sans","Arimo","Tinos","Cousine","Carlito","Caladea","Cantarell","Droid Sans","Droid Sans Fallback","Nimbus Sans","Nimbus Roman","Nimbus Mono PS","URW Gothic","URW Bookman","C059","P052","Z003","D050000L","Standard Symbols PS","OpenSymbol","Font Awesome 5 Free","FontAwesome","NanumGothic","NanumMyeongjo","Lohit Devanagari","Lohit Tamil","Samyak Devanagari","Gargi","Chilanka","Amiri","KacstOne","Khmer OS","Phetsarath OT","LKLUG","Abyssinica SIL","Padauk","Tibetan Machine Uni","Sarai","Tlwg Typo","Garuda","Norasi","Purisa","Waree","Bitstream Vera Sans","Luxi Sans","Source Sans Pro","Inter","Fira Sans","Fira Code","Hack","Inconsolata","JetBrains Mono","IBM Plex Sans","PT Sans","Merriweather","Oswald","Montserrat","Raleway","Poppins","Nunito"];
+  const bases = ["monospace","sans-serif","serif"]; const text = "mmmmmmmmmmlli1O0wWqQ@%&"; const size = "72px";
+  const canvas = document.createElement("canvas"); const ctx = canvas.getContext("2d");
+  const width = font => { ctx.font = size + " " + font; return ctx.measureText(text).width; };
+  const base = {}; for (const b of bases) base[b] = width(b);
+  const detected = families.filter(f => bases.some(b => width('"' + f + '", ' + b) !== base[b]));
+  const out = { total: families.length, detected: detected.length, platform: navigator.platform, userAgent: navigator.userAgent, families: detected };
+  document.getElementById("out").textContent = "FONTPROBE " + JSON.stringify(out);
+})();
+</script></body></html>
