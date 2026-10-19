@@ -1,0 +1,17 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>rAF rate probe</title>
+<pre id="out">measuring…</pre>
+<script>
+// Measures the requestAnimationFrame rate over 4 s and prints RAFPROBE {json}.
+const frames = []; let start = null;
+function tick(t) { if (start === null) start = t; frames.push(t); if (t - start < 4000) requestAnimationFrame(tick); else done(); }
+function done() {
+  const gaps = []; for (let i = 1; i < frames.length; i++) gaps.push(frames[i] - frames[i - 1]);
+  gaps.sort((a, b) => a - b);
+  const fps = (frames.length - 1) / ((frames[frames.length - 1] - frames[0]) / 1000);
+  const result = { fps: +fps.toFixed(2), frames: frames.length, medianGapMs: +gaps[Math.floor(gaps.length / 2)].toFixed(2), p95GapMs: +gaps[Math.floor(gaps.length * 0.95)].toFixed(2), screen: `${screen.width}x${screen.height}`, dpr: devicePixelRatio };
+  document.getElementById('out').textContent = 'RAFPROBE ' + JSON.stringify(result);
+}
+requestAnimationFrame(tick);
+</script>
