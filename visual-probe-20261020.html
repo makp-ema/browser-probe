@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visible frame ID benchmark fixture</title>
+<style>
+  * { box-sizing: border-box; }
+  html { scroll-behavior: auto; }
+  body { margin: 0; background: #e8edf2; color: #172535; font: 18px system-ui, sans-serif; }
+  header { position: sticky; top: 0; z-index: 100; padding: 24px; padding-right: 310px; background: white; border-bottom: 3px solid #172535; }
+  button { padding: 10px 16px; margin: 0 8px 8px 0; font: inherit; cursor: pointer; }
+  main { padding: 24px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  article { height: 200px; padding: 20px; border: 3px solid #172535; background: white; overflow: hidden; }
+  article:nth-child(3n + 1) { background: #c5e6f0; }
+  article:nth-child(3n + 2) { background: #f8d4aa; }
+  article:nth-child(3n) { background: #cde5c5; }
+  h2 { font-size: 28px; margin: 0 0 16px; }
+  .bar { height: 18px; margin: 12px 0; background: #172535; }
+</style>
+<header>
+  <h1>Visible frame ID probe</h1>
+  <p>Active motion advances the fixed marker and scrolls. Idle stops both. This page uses no network assets or randomness.</p>
+  <button id="active" data-benchmark-control>Start active motion</button><button id="idle" data-benchmark-control>Idle / freeze marker</button>
+  <button id="input-target">Input latency target</button>
+  <span id="status">Idle</span>
+</header>
+<main id="content"></main>
+<script type="module">
+  // Self-contained so Playwright can use page.evaluate(installSourceProbe, options).
+// Trusted benchmark fixtures only. Do not inject into production or authenticated pages.
+function installSourceProbe(options = {}) {
+  if (window.__visualSourceProbe) throw new Error('A visual source probe is already installed');
+  const cell = options.cellSize ?? 16;
+  if (!Number.isInteger(cell) || cell < 8 || cell > 32) throw new RangeError('cellSize must be 8..32');
+  const canvas = document.createElement('canvas');
+  canvas.width = cell * 16;
+  canvas.height = cell * 8;
+  canvas.dataset.benchmarkMarker = 'visible-frame-id-v1';
+  Object.assign(canvas.style, {
+    position: 'fixed', right: `${options.right ?? 16}px`, top: `${options.top ?? 16}px`,
+    width: `${canvas.width}px`, height: `${canvas.height}px`, zIndex: '2147483647',
+    pointerEvents: 'none', imageRendering: 'pixelated', opacity: '1',
+    transform: 'none', filter: 'none', border: '0', margin: '0', padding: '0',
+  });
+  document.documentElement.append(canvas);
+  const context = canvas.getContext('2d', { alpha: false });
+  let id = (options.initialId ?? 0) & 0xffff;
+  let inputSeq = (options.initialInputSeq ?? 0) & 0xffff;
+  let active = false, raf = null, previousTime = null, scrollPosition = window.scrollY, direction = 1;
+  function checksum(value, input) {
+    let crc = 0xffff;
+    for (const byte of [1, (value >>> 8) & 255, value & 255, (input >>> 8) & 255, input & 255]) {
+      crc ^= byte << 8;
+      for (let bit = 0; bit < 8; bit++) crc = ((crc << 1) ^ ((crc & 0x8000) ? 0x1021 : 0)) & 0xffff;
+    }
+    return crc;
+  }
+  function draw() {
+    const crc = checksum(id, inputSeq);
+    [0xa53c, id, inputSeq, crc, id ^ 0xffff, inputSeq ^ 0xffff, crc ^ 0xffff, 0x3ca5].forEach((word, row) => {
+      for (let column = 0; column < 16; column++) {
+        context.fillStyle = (word >>> (15 - column)) & 1 ? '#f0f0f0' : '#101010';
+        context.fillRect(column * cell, row * cell, cell, cell);
+      }
+    });
+  }
+  function pointerdown(event) {
+    if (event.target?.closest?.('[data-benchmark-control]')) return;
+    inputSeq = (inputSeq + 1) & 0xffff;
+    draw();
+  }
+  document.addEventListener('pointerdown', pointerdown, true);
+  function tick(time) {
+    if (!active) return;
+    const elapsed = previousTime === null ? 0 : Math.min(100, time - previousTime);
+    previousTime = time;
+    id = (id + 1) & 0xffff;
+    draw();
+    if (options.autoScroll) {
+      const maximum = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      scrollPosition = Math.max(0, Math.min(maximum, scrollPosition + direction * (options.scrollPixelsPerSecond ?? 240) * elapsed / 1000));
+      if (scrollPosition >= maximum) direction = -1;
+      else if (scrollPosition <= 0) direction = 1;
+      window.scrollTo(0, scrollPosition);
+    }
+    raf = requestAnimationFrame(tick);
+  }
+  const probe = {
+    start() {
+      if (active) return;
+      active = true; previousTime = null; scrollPosition = window.scrollY;
+      raf = requestAnimationFrame(tick);
+    },
+    pause() {
+      active = false;
+      if (raf !== null) cancelAnimationFrame(raf);
+      raf = null;
+    },
+    state() {
+      const { x, y, width, height } = canvas.getBoundingClientRect();
+      return { version: 1, id, inputSeq, active, viewport: { width: innerWidth, height: innerHeight }, rect: { x, y, width, height } };
+    },
+    remove() { probe.pause(); document.removeEventListener('pointerdown', pointerdown, true); canvas.remove(); delete window.__visualSourceProbe; },
+  };
+  draw();
+  window.__visualSourceProbe = probe;
+  if (options.active) probe.start();
+  return probe.state();
+}
+
+  const content = document.querySelector('#content');
+  for (let index = 0; index < 120; index++) {
+    const card = document.createElement('article');
+    card.innerHTML = `<h2>Section ${String(index + 1).padStart(3, '0')}</h2><div class="bar" style="width:${40 + index % 55}%"></div><div class="bar" style="width:${85 - index % 40}%"></div><p>Deterministic browser rendering fixture.</p>`;
+    content.append(card);
+  }
+  installSourceProbe({ autoScroll: true, active: new URL(location.href).searchParams.get('active') === '1' });
+  document.addEventListener('keydown', e => { if (e.key === 'p') window.__visualSourceProbe.pause(); if (e.key === 'a') window.__visualSourceProbe.start(); });
+  document.querySelector('#active').onclick = () => {
+    window.__visualSourceProbe.start(); document.querySelector('#status').textContent = 'Active motion';
+  };
+  document.querySelector('#idle').onclick = () => {
+    window.__visualSourceProbe.pause(); document.querySelector('#status').textContent = 'Idle';
+  };
+</script>
+</html>
